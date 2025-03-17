@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Box, Typography, Paper, CircularProgress, TextField, Button, Divider, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
@@ -6,64 +6,12 @@ import SearchIcon from '@mui/icons-material/Search';
 import DirectionsIcon from '@mui/icons-material/Directions';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import LayersIcon from '@mui/icons-material/Layers';
+import { fetchHealthcareFacilities } from '../services/osm';
+import AmbulanceRouting from './AmbulanceRouting';
 
 // Coordinates for Himachal Pradesh
 const HP_CENTER = [31.1048, 77.1734]; // Coordinates for Shimla, capital of Himachal Pradesh
 const DEFAULT_ZOOM = 8;
-
-// Sample data for healthcare facilities - in a real app, this would come from an API
-const SAMPLE_FACILITIES = [
-  {
-    id: 1,
-    name: "Indira Gandhi Medical College and Hospital",
-    type: "Tertiary",
-    lat: 31.1040,
-    lng: 77.1725,
-    address: "Ridge, Shimla, Himachal Pradesh 171001",
-    phone: "+91 177 280 4251",
-    specialties: ["Cardiology", "Neurology", "Orthopedics"]
-  },
-  {
-    id: 2,
-    name: "Deen Dayal Upadhyay Hospital",
-    type: "Secondary",
-    lat: 31.1080,
-    lng: 77.1690,
-    address: "Sanjauli, Shimla, Himachal Pradesh 171006",
-    phone: "+91 177 280 5777",
-    specialties: ["General Medicine", "Pediatrics"]
-  },
-  {
-    id: 3,
-    name: "Community Health Centre Dhalli",
-    type: "Primary",
-    lat: 31.1215,
-    lng: 77.1963,
-    address: "Dhalli, Shimla, Himachal Pradesh 171012",
-    phone: "+91 177 279 0025",
-    specialties: ["General Medicine", "Basic Emergency Care"]
-  },
-  {
-    id: 4, 
-    name: "Primary Health Centre New Shimla",
-    type: "Primary",
-    lat: 31.0910,
-    lng: 77.1510,
-    address: "New Shimla, Himachal Pradesh 171009",
-    phone: "+91 177 279 2144",
-    specialties: ["General Medicine", "Maternal Care"]
-  },
-  {
-    id: 5,
-    name: "Dr. Rajendra Prasad Government Medical College",
-    type: "Tertiary",
-    lat: 32.0998,
-    lng: 76.2691,
-    address: "Tanda, Kangra, Himachal Pradesh 176001",
-    phone: "+91 1892 267115",
-    specialties: ["Cardiology", "Neurology", "Oncology"]
-  }
-];
 
 // Custom icons for different facility types
 const createFacilityIcon = (type) => {
@@ -109,17 +57,26 @@ function MapView({ selectedRegion }) {
   const [center, setCenter] = useState(HP_CENTER);
   const [searchTerm, setSearchTerm] = useState('');
   const [facilityType, setFacilityType] = useState('All');
+  const [error, setError] = useState(null);
+  const [selectedPoint, setSelectedPoint] = useState(null);
+  const mapRef = useRef(null);
   
-  // Simulate fetching data
   useEffect(() => {
-    // In a real application, this would be a fetch call to an API
-    // based on the selected region
-    console.log(`Fetching data for ${selectedRegion}...`);
-    
-    setTimeout(() => {
-      setFacilities(SAMPLE_FACILITIES);
-      setLoading(false);
-    }, 1000);
+    const loadFacilities = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchHealthcareFacilities();
+        setFacilities(data);
+      } catch (err) {
+        console.error('Error loading facilities:', err);
+        setError('Failed to load healthcare facilities. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFacilities();
   }, [selectedRegion]);
 
   const filteredFacilities = facilities.filter(facility => {
@@ -129,13 +86,23 @@ function MapView({ selectedRegion }) {
     return matchesSearch && matchesType;
   });
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    // Additional search logic could be added here
+  const handleMapClick = (e) => {
+    setSelectedPoint([e.latlng.lat, e.latlng.lng]);
   };
 
+  // Custom marker for selected point
+  const startPointIcon = L.divIcon({
+    html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+            <circle cx="12" cy="12" r="10" fill="#e53935"/>
+            <circle cx="12" cy="12" r="6" fill="white"/>
+          </svg>`,
+    className: "",
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+
   const MapLegend = () => (
-    <Paper elevation={3} className="legend" sx={{ position: 'absolute', bottom: 20, right: 20, zIndex: 1000 }}>
+    <Paper elevation={3} className="legend" sx={{ position: 'absolute', bottom: 20, right: 20, zIndex: 1000, p: 2 }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>Legend</Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
         <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: '#4caf50', mr: 1 }}></Box>
@@ -149,6 +116,10 @@ function MapView({ selectedRegion }) {
         <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: '#f44336', mr: 1 }}></Box>
         <Typography variant="body2">Tertiary Healthcare</Typography>
       </Box>
+      <Divider sx={{ my: 1 }} />
+      <Typography variant="body2" color="text.secondary">
+        Data from OpenStreetMap
+      </Typography>
     </Paper>
   );
 
@@ -156,6 +127,16 @@ function MapView({ selectedRegion }) {
     return (
       <Box className="loading-indicator">
         <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Paper elevation={3} sx={{ p: 2, bgcolor: '#ffebee' }}>
+          <Typography color="error">{error}</Typography>
+        </Paper>
       </Box>
     );
   }
@@ -170,113 +151,165 @@ function MapView({ selectedRegion }) {
           top: 20, 
           left: 20, 
           zIndex: 1000, 
-          p: 2, 
-          width: { xs: 'calc(100% - 40px)', sm: 350 },
-          maxWidth: '90%'
+          p: 2,
+          width: 300
         }}
       >
-        <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-          <LocalHospitalIcon sx={{ mr: 1 }} />
+        <Typography variant="h6" gutterBottom>
           Healthcare Facilities
         </Typography>
-        
-        <form onSubmit={handleSearch}>
-          <Box sx={{ display: 'flex', mb: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search by name or address"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              sx={{ mr: 1 }}
-            />
-            <Button 
-              variant="contained" 
-              type="submit"
-              sx={{ minWidth: 'auto' }}
-            >
-              <SearchIcon />
-            </Button>
-          </Box>
+        <form onSubmit={(e) => e.preventDefault()}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search facilities..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            sx={{ mb: 2 }}
+          />
         </form>
-        
-        <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-          <InputLabel id="facility-type-label">Facility Type</InputLabel>
+        <FormControl fullWidth size="small">
+          <InputLabel>Facility Type</InputLabel>
           <Select
-            labelId="facility-type-label"
-            id="facility-type"
             value={facilityType}
             label="Facility Type"
             onChange={(e) => setFacilityType(e.target.value)}
           >
             <MenuItem value="All">All Types</MenuItem>
-            <MenuItem value="Primary">Primary</MenuItem>
-            <MenuItem value="Secondary">Secondary</MenuItem>
-            <MenuItem value="Tertiary">Tertiary</MenuItem>
+            <MenuItem value="Primary">Primary Healthcare</MenuItem>
+            <MenuItem value="Secondary">Secondary Healthcare</MenuItem>
+            <MenuItem value="Tertiary">Tertiary Healthcare</MenuItem>
           </Select>
         </FormControl>
-        
-        <Divider sx={{ my: 1 }} />
-        
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          Showing {filteredFacilities.length} facilities
+        </Typography>
+        <Divider sx={{ my: 2 }} />
         <Typography variant="body2" color="text.secondary">
-          Showing {filteredFacilities.length} of {facilities.length} facilities in {selectedRegion}
+          Click anywhere on the map to set a starting point for ambulance routing
         </Typography>
       </Paper>
-      
-      {/* Map Container */}
+
       <MapContainer 
         center={center} 
         zoom={DEFAULT_ZOOM} 
         style={{ height: '100%', width: '100%' }}
+        ref={mapRef}
+        onClick={handleMapClick}
       >
         <MapCenterUpdater center={center} zoom={DEFAULT_ZOOM} />
+        
+        {/* Map click handler */}
+        <MapClickHandler onMapClick={handleMapClick} />
         
         <LayersControl position="topright">
           <LayersControl.BaseLayer checked name="OpenStreetMap">
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
           </LayersControl.BaseLayer>
+          
           <LayersControl.BaseLayer name="Satellite">
             <TileLayer
-              attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution='&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
             />
           </LayersControl.BaseLayer>
         </LayersControl>
-        
-        {filteredFacilities.map(facility => (
-          <Marker 
-            key={facility.id} 
+
+        {/* Facility markers */}
+        {filteredFacilities.map((facility) => (
+          <Marker
+            key={facility.id}
             position={[facility.lat, facility.lng]}
             icon={createFacilityIcon(facility.type)}
           >
-            <Popup className="facility-popup">
-              <div className="facility-info">
-                <h3>{facility.name}</h3>
-                <p><strong>Type:</strong> {facility.type} Healthcare</p>
-                <p><strong>Address:</strong> {facility.address}</p>
-                <p><strong>Phone:</strong> {facility.phone}</p>
-                <p><strong>Specialties:</strong> {facility.specialties.join(', ')}</p>
+            <Popup>
+              <Typography variant="subtitle1" fontWeight="bold">
+                {facility.name}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {facility.type} Healthcare Facility
+              </Typography>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="body2">
+                {facility.address}
+              </Typography>
+              {facility.phone !== 'N/A' && (
+                <Typography variant="body2">
+                  📞 {facility.phone}
+                </Typography>
+              )}
+              {facility.specialties.length > 0 && (
+                <>
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="body2" fontWeight="bold">
+                    Specialties:
+                  </Typography>
+                  <Typography variant="body2">
+                    {facility.specialties.join(', ')}
+                  </Typography>
+                </>
+              )}
+              <Box sx={{ mt: 1 }}>
                 <Button 
-                  variant="contained" 
                   size="small" 
-                  startIcon={<DirectionsIcon />} 
-                  sx={{ mt: 1 }}
-                  onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${facility.lat},${facility.lng}`)}
+                  startIcon={<DirectionsIcon />}
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${facility.lat},${facility.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
                   Get Directions
                 </Button>
-              </div>
+              </Box>
             </Popup>
           </Marker>
         ))}
-        
-        <MapLegend />
+
+        {/* Selected point marker */}
+        {selectedPoint && (
+          <Marker
+            position={selectedPoint}
+            icon={startPointIcon}
+          >
+            <Popup>
+              <Typography variant="body2">Starting Point</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Click on a facility to calculate route
+              </Typography>
+            </Popup>
+          </Marker>
+        )}
       </MapContainer>
+
+      <MapLegend />
+      
+      {/* Ambulance routing component */}
+      <AmbulanceRouting 
+        map={mapRef.current}
+        facilities={filteredFacilities}
+        selectedPoint={selectedPoint}
+      />
     </Box>
   );
+}
+
+// Map click handler component
+function MapClickHandler({ onMapClick }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (!map) return;
+    
+    map.on('click', onMapClick);
+    
+    return () => {
+      map.off('click', onMapClick);
+    };
+  }, [map, onMapClick]);
+  
+  return null;
 }
 
 export default MapView; 

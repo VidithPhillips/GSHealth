@@ -18,57 +18,7 @@ import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PeopleIcon from '@mui/icons-material/People';
 import RouteIcon from '@mui/icons-material/Route';
-
-// Sample analytics data for Himachal Pradesh
-const SAMPLE_ANALYTICS = {
-  totalFacilities: {
-    primary: 12,
-    secondary: 8,
-    tertiary: 3,
-  },
-  populationCoverage: {
-    within5km: 46, // percentage
-    within10km: 72, // percentage
-    within20km: 94, // percentage
-    beyond20km: 6, // percentage
-  },
-  responseTime: {
-    urban: 14, // minutes
-    semiUrban: 28, // minutes
-    rural: 46, // minutes
-    remote: 72, // minutes
-  },
-  facilityDensity: {
-    overallPerMillion: 6.8,
-    primaryPerMillion: 3.5,
-    secondaryPerMillion: 2.4,
-    tertiaryPerMillion: 0.9,
-  },
-  specialtyCoverage: [
-    { name: 'General Medicine', coverage: 96 },
-    { name: 'Pediatrics', coverage: 72 },
-    { name: 'Obstetrics & Gynecology', coverage: 68 },
-    { name: 'Orthopedics', coverage: 52 },
-    { name: 'Cardiology', coverage: 41 },
-    { name: 'Neurology', coverage: 32 },
-    { name: 'Oncology', coverage: 24 },
-    { name: 'Psychiatry', coverage: 18 },
-  ],
-  regionalAccessibility: [
-    { district: 'Shimla', accessScore: 76 },
-    { district: 'Kangra', accessScore: 71 },
-    { district: 'Mandi', accessScore: 68 },
-    { district: 'Solan', accessScore: 64 },
-    { district: 'Kullu', accessScore: 58 },
-    { district: 'Una', accessScore: 56 },
-    { district: 'Sirmaur', accessScore: 51 },
-    { district: 'Bilaspur', accessScore: 50 },
-    { district: 'Hamirpur', accessScore: 49 },
-    { district: 'Chamba', accessScore: 42 },
-    { district: 'Kinnaur', accessScore: 38 },
-    { district: 'Lahaul and Spiti', accessScore: 31 },
-  ]
-};
+import { calculateAnalytics } from '../services/analytics';
 
 // Helper function to determine color based on score
 const getColorByScore = (score) => {
@@ -106,16 +56,24 @@ const LabeledProgressBar = ({ label, value, color, tooltip }) => (
 function Analytics({ selectedRegion }) {
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState(null);
+  const [error, setError] = useState(null);
 
-  // Simulate loading data
   useEffect(() => {
-    console.log(`Fetching analytics data for ${selectedRegion}...`);
-    
-    // Simulating API call delay
-    setTimeout(() => {
-      setAnalytics(SAMPLE_ANALYTICS);
-      setLoading(false);
-    }, 1500);
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await calculateAnalytics();
+        setAnalytics(data);
+      } catch (err) {
+        console.error('Error fetching analytics:', err);
+        setError('Failed to load analytics data. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAnalytics();
   }, [selectedRegion]);
 
   if (loading) {
@@ -123,6 +81,16 @@ function Analytics({ selectedRegion }) {
       <Box className="loading-indicator">
         <CircularProgress />
       </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      </Container>
     );
   }
 
@@ -139,8 +107,8 @@ function Analytics({ selectedRegion }) {
       </Typography>
       
       <Alert severity="info" sx={{ mb: 3 }}>
-        This dashboard provides an overview of healthcare facility accessibility metrics for {selectedRegion}. 
-        All data is based on the current healthcare facilities mapped in the system.
+        This dashboard provides real-time analytics based on OpenStreetMap data for healthcare facilities in {selectedRegion}.
+        Last updated: {new Date().toLocaleString()}
       </Alert>
       
       {/* Key Metrics */}
@@ -278,7 +246,7 @@ function Analytics({ selectedRegion }) {
               Medical Specialty Coverage
             </Typography>
             <Typography variant="body2" color="text.secondary" paragraph>
-              Percentage of population with access to each medical specialty
+              Percentage of facilities offering each medical specialty
             </Typography>
             
             <Divider sx={{ my: 2 }} />
@@ -289,7 +257,7 @@ function Analytics({ selectedRegion }) {
                 label={specialty.name}
                 value={specialty.coverage}
                 color={getColorByScore(specialty.coverage)}
-                tooltip={`${specialty.coverage}% of the population has access to ${specialty.name} specialists`}
+                tooltip={`${specialty.coverage}% of facilities offer ${specialty.name}`}
               />
             ))}
           </Paper>
@@ -348,8 +316,7 @@ function Analytics({ selectedRegion }) {
       
       <Box sx={{ mt: 4, textAlign: 'center' }}>
         <Typography variant="body2" color="text.secondary">
-          Note: This data is simulated for demonstration purposes. In a production environment,
-          real-time analytics would be calculated based on actual facility locations and population data.
+          Data sourced from OpenStreetMap and calculated in real-time. Population estimates based on 2011 census data.
         </Typography>
       </Box>
     </Container>
