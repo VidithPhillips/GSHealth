@@ -1,17 +1,27 @@
-# GSHealth - Healthcare Facility Mapping and Ambulance Routing
+# GSHealth 🏥
 
-A free, open-source web application for mapping healthcare facilities in India and providing optimal ambulance routing to enhance emergency response times, particularly in remote areas.
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://vidithphillips.github.io/GSHealth/)
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![React](https://img.shields.io/badge/React-18.2.0-blue)](https://reactjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-4.4.5-purple)](https://vitejs.dev/)
+[![Material UI](https://img.shields.io/badge/Material%20UI-5.14.18-blue)](https://mui.com/)
 
-## Project Overview
+A free, open-source web application for mapping healthcare facilities and optimizing ambulance routing in India, with an initial focus on Himachal Pradesh. Our mission is to enhance emergency response times and improve healthcare accessibility, particularly in remote areas.
 
-This application focuses initially on the state of Himachal Pradesh, with plans to expand coverage to other Indian states. It utilizes open data sources to provide:
+## 🌐 Live Demo
 
-- Interactive mapping of healthcare facilities (primary, secondary, and tertiary)
-- Optimal ambulance routing between facilities
-- Analysis of healthcare accessibility
-- Visualization of healthcare coverage gaps
+Visit our live application: [GSHealth Web App](https://vidithphillips.github.io/GSHealth/)
 
-## Features
+## 🎯 Project Overview
+
+GSHealth addresses critical healthcare accessibility challenges in India by providing:
+
+- 🗺️ Interactive mapping of healthcare facilities (primary, secondary, and tertiary)
+- 🚑 Optimal ambulance routing between facilities
+- 📊 Analysis of healthcare accessibility
+- 🎯 Visualization of healthcare coverage gaps
+
+## ✨ Features
 
 - **Facility Mapping**: Interactive visualization of healthcare centers
 - **Search Functionality**: Find specific facilities by type, location, or services
@@ -19,7 +29,44 @@ This application focuses initially on the state of Himachal Pradesh, with plans 
 - **Transit Estimation**: Provide estimated travel times considering road conditions
 - **Healthcare Accessibility Analysis**: Identify underserved areas
 
-## Data Sources
+## 🛠️ Technology Stack
+
+- **Frontend Framework**: React.js with Vite
+- **UI Components**: Material UI
+- **Mapping**: Leaflet.js
+- **Routing**: React Router DOM
+- **HTTP Client**: Axios
+- **Hosting**: GitHub Pages
+
+## 📦 Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/VidithPhillips/GSHealth.git
+   cd GSHealth
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+4. Build for production:
+   ```bash
+   npm run build
+   ```
+
+5. Deploy to GitHub Pages:
+   ```bash
+   npm run deploy
+   ```
+
+## 🗃️ Data Sources
 
 - OpenStreetMap (OSM)
 - National Health Mission (NHM)
@@ -27,20 +74,22 @@ This application focuses initially on the state of Himachal Pradesh, with plans 
 - NASA SRTM Digital Elevation Data
 - Various open-source routing engines
 
-## Technology Stack
+## 🤝 Contributing
 
-- **Frontend**: React.js with Leaflet for mapping
-- **Backend**: Serverless architecture (GitHub Pages hosting)
-- **Data Processing**: QGIS and custom scripts
+We welcome contributions! Here's how you can help:
 
-## Development Status
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-This project is currently in active development.
+## 📄 License
 
-## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-This project is open source under the MIT License.
+## 📬 Contact
 
-## Contributing
+Vidith Phillips - [GitHub Profile](https://github.com/VidithPhillips)
 
-Contributions are welcome! Please feel free to submit a Pull Request. 
+Project Link: [https://github.com/VidithPhillips/GSHealth](https://github.com/VidithPhillips/GSHealth) 
