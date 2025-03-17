@@ -51,17 +51,25 @@ GSHealth addresses critical healthcare accessibility challenges in India by prov
    npm install
    ```
 
-3. Start the development server:
+3. Set up environment variables:
+   - Copy `.env.example` to `.env`
+   - Sign up for an API key at [OpenRouteService](https://openrouteservice.org/dev/#/signup)
+   - Add your API key to the `.env` file:
+     ```
+     VITE_ORS_API_KEY=your_api_key_here
+     ```
+
+4. Start the development server:
    ```bash
    npm run dev
    ```
 
-4. Build for production:
+5. Build for production:
    ```bash
    npm run build
    ```
 
-5. Deploy to GitHub Pages:
+6. Deploy to GitHub Pages:
    ```bash
    npm run deploy
    ```
