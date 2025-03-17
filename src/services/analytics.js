@@ -1,139 +1,152 @@
-import { fetchHealthcareFacilities } from './osm';
-
-// Population data for Himachal Pradesh districts (2011 census, in millions)
-const DISTRICT_POPULATION = {
-  'Shimla': 0.814,
-  'Kangra': 1.510,
-  'Mandi': 0.999,
-  'Solan': 0.580,
-  'Kullu': 0.438,
-  'Una': 0.521,
-  'Sirmaur': 0.529,
-  'Bilaspur': 0.382,
-  'Hamirpur': 0.454,
-  'Chamba': 0.519,
-  'Kinnaur': 0.084,
-  'Lahaul and Spiti': 0.031,
-};
-
-const TOTAL_POPULATION = Object.values(DISTRICT_POPULATION).reduce((a, b) => a + b, 0);
-
-/**
- * Calculate distance between two points using Haversine formula
- */
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-};
+import { fetchHealthcareFacilities, calculateFacilityStats } from './facilities';
+import { calculateHaversineDistance } from './routing';
 
 /**
  * Calculate analytics based on real facility data
+ * @returns {Promise<Object>} Analytics data
  */
 export const calculateAnalytics = async () => {
-  const facilities = await fetchHealthcareFacilities();
-  
-  // Count facilities by type
-  const totalFacilities = {
-    primary: facilities.filter(f => f.type === 'Primary').length,
-    secondary: facilities.filter(f => f.type === 'Secondary').length,
-    tertiary: facilities.filter(f => f.type === 'Tertiary').length,
-  };
+  try {
+    // Fetch facilities data
+    const facilities = await fetchHealthcareFacilities();
+    const stats = calculateFacilityStats(facilities);
 
-  // Calculate facility density
-  const totalFacilitiesCount = Object.values(totalFacilities).reduce((a, b) => a + b, 0);
-  const facilityDensity = {
-    overallPerMillion: (totalFacilitiesCount / TOTAL_POPULATION).toFixed(1),
-    primaryPerMillion: (totalFacilities.primary / TOTAL_POPULATION).toFixed(1),
-    secondaryPerMillion: (totalFacilities.secondary / TOTAL_POPULATION).toFixed(1),
-    tertiaryPerMillion: (totalFacilities.tertiary / TOTAL_POPULATION).toFixed(1),
-  };
+    // Population centers in Himachal Pradesh with 2011 census data
+    const populationCenters = [
+      { name: 'Shimla', lat: 31.1048, lng: 77.1734, population: 169578 },
+      { name: 'Dharamshala', lat: 32.2190, lng: 76.3234, population: 136948 },
+      { name: 'Mandi', lat: 31.7088, lng: 76.9320, population: 126987 },
+      { name: 'Solan', lat: 30.9045, lng: 77.0967, population: 106116 },
+      { name: 'Nahan', lat: 30.5623, lng: 77.2956, population: 56000 },
+      { name: 'Kullu', lat: 31.9579, lng: 77.1091, population: 18536 },
+      { name: 'Bilaspur', lat: 31.3397, lng: 76.7567, population: 13654 }
+    ];
 
-  // Collect all specialties
-  const allSpecialties = new Set();
-  facilities.forEach(facility => {
-    facility.specialties.forEach(specialty => allSpecialties.add(specialty));
-  });
+    // Calculate population coverage
+    const totalPopulation = populationCenters.reduce((sum, center) => sum + center.population, 0);
+    let within5km = 0;
+    let within10km = 0;
+    let within20km = 0;
 
-  // Calculate specialty coverage
-  const specialtyCoverage = Array.from(allSpecialties).map(specialty => {
-    const facilitiesWithSpecialty = facilities.filter(f => 
-      f.specialties.includes(specialty)
-    ).length;
-    return {
-      name: specialty,
-      coverage: Math.round((facilitiesWithSpecialty / totalFacilitiesCount) * 100)
+    populationCenters.forEach(center => {
+      const nearestFacility = facilities.reduce((nearest, facility) => {
+        const distance = calculateHaversineDistance(
+          center.lat,
+          center.lng,
+          facility.lat,
+          facility.lng
+        );
+        return distance < nearest.distance ? { distance, type: facility.type } : nearest;
+      }, { distance: Infinity, type: null });
+
+      if (nearestFacility.distance <= 5) {
+        within5km += center.population;
+        within10km += center.population;
+        within20km += center.population;
+      } else if (nearestFacility.distance <= 10) {
+        within10km += center.population;
+        within20km += center.population;
+      } else if (nearestFacility.distance <= 20) {
+        within20km += center.population;
+      }
+    });
+
+    // Calculate response times for different zones
+    const zones = [
+      { type: 'urban', maxTime: 15 },
+      { type: 'suburban', maxTime: 25 },
+      { type: 'rural', maxTime: 40 },
+      { type: 'remote', maxTime: 60 }
+    ];
+
+    const responseTimes = zones.reduce((acc, zone) => {
+      const facilitiesInRange = facilities.filter(f => {
+        const baseTime = f.emergency ? 0.8 : 1;
+        const typeMultiplier = f.type === 'Tertiary' ? 0.9 : f.type === 'Secondary' ? 1 : 1.1;
+        return baseTime * typeMultiplier * zone.maxTime <= zone.maxTime;
+      }).length;
+
+      acc[zone.type] = facilitiesInRange / facilities.length;
+      return acc;
+    }, {});
+
+    // Calculate facility density
+    const HIMACHAL_AREA = 55673; // Area in sq km
+    const HIMACHAL_POPULATION = 7500000; // Approximate population as of 2021
+
+    const facilityDensity = {
+      overallPerMillion: (facilities.length / (HIMACHAL_POPULATION / 1000000)).toFixed(2),
+      primaryPerMillion: (stats.byType.Primary / (HIMACHAL_POPULATION / 1000000)).toFixed(2),
+      secondaryPerMillion: (stats.byType.Secondary / (HIMACHAL_POPULATION / 1000000)).toFixed(2),
+      tertiaryPerMillion: (stats.byType.Tertiary / (HIMACHAL_POPULATION / 1000000)).toFixed(2)
     };
-  }).sort((a, b) => b.coverage - a.coverage);
 
-  // Calculate district-wise accessibility scores
-  const regionalAccessibility = Object.keys(DISTRICT_POPULATION).map(district => {
-    // Simple scoring based on facilities per capita and distribution
-    const districtFacilities = facilities.filter(f => 
-      f.address.toLowerCase().includes(district.toLowerCase())
-    );
-    
-    const facilitiesPerCapita = districtFacilities.length / DISTRICT_POPULATION[district];
-    const hasEmergencyCare = districtFacilities.some(f => 
-      f.specialties.includes('Emergency Care')
-    );
-    const hasTertiaryCare = districtFacilities.some(f => f.type === 'Tertiary');
-    
-    let accessScore = Math.min(
-      Math.round(
-        (facilitiesPerCapita * 50) + // Facilities per capita (50% weight)
-        (hasEmergencyCare ? 25 : 0) + // Emergency care availability (25% weight)
-        (hasTertiaryCare ? 25 : 0)    // Tertiary care availability (25% weight)
-      ),
-      100
-    );
+    // Calculate specialty coverage
+    const ESSENTIAL_SPECIALTIES = [
+      'Emergency',
+      'Surgery',
+      'Maternity',
+      'Pediatrics',
+      'Internal Medicine',
+      'Orthopedics',
+      'Cardiology'
+    ];
+
+    const specialtyCoverage = ESSENTIAL_SPECIALTIES.map(specialty => {
+      const facilitiesWithSpecialty = facilities.filter(f => 
+        Array.isArray(f.specialties) && 
+        f.specialties.some(s => s.toLowerCase().includes(specialty.toLowerCase()))
+      ).length;
+      
+      return {
+        name: specialty,
+        coverage: ((facilitiesWithSpecialty / (facilities.length || 1)) * 100).toFixed(1)
+      };
+    });
+
+    // Calculate district-wise accessibility
+    const districts = [
+      { name: 'Shimla', lat: 31.1048, lng: 77.1734 },
+      { name: 'Kangra', lat: 32.2190, lng: 76.3234 },
+      { name: 'Mandi', lat: 31.7088, lng: 76.9320 },
+      { name: 'Solan', lat: 30.9045, lng: 77.0967 },
+      { name: 'Kullu', lat: 31.9579, lng: 77.1091 }
+    ];
+
+    const accessibility = districts.map(district => {
+      const facilitiesInDistrict = facilities.filter(f => 
+        calculateHaversineDistance(district.lat, district.lng, f.lat, f.lng) <= 30
+      );
+
+      const score = Math.min(100, Math.round(
+        (facilitiesInDistrict.length * 20) +
+        (facilitiesInDistrict.filter(f => f.emergency).length * 30) +
+        (facilitiesInDistrict.filter(f => f.type === 'Tertiary').length * 25)
+      ));
+
+      return {
+        district: district.name,
+        accessScore: score
+      };
+    });
 
     return {
-      district,
-      accessScore
+      totalFacilities: stats.byType,
+      populationCoverage: {
+        within5km: ((within5km / totalPopulation) * 100).toFixed(1),
+        within10km: ((within10km / totalPopulation) * 100).toFixed(1),
+        within20km: ((within20km / totalPopulation) * 100).toFixed(1),
+        beyond20km: (100 - ((within20km / totalPopulation) * 100)).toFixed(1)
+      },
+      responseTimes,
+      facilityDensity,
+      specialtyCoverage,
+      accessibility
     };
-  }).sort((a, b) => b.accessScore - a.accessScore);
-
-  // Estimate population coverage based on facility distribution
-  const populationCoverage = {
-    within5km: 0,
-    within10km: 0,
-    within20km: 0,
-    beyond20km: 0
-  };
-
-  // Simple estimation based on facility distribution and population density
-  const coverageEstimate = Math.min(
-    Math.round((totalFacilitiesCount / TOTAL_POPULATION) * 100),
-    100
-  );
-  populationCoverage.within5km = Math.round(coverageEstimate * 0.4);
-  populationCoverage.within10km = Math.round(coverageEstimate * 0.7);
-  populationCoverage.within20km = Math.round(coverageEstimate * 0.9);
-  populationCoverage.beyond20km = 100 - populationCoverage.within20km;
-
-  // Estimate response times based on facility distribution
-  const responseTime = {
-    urban: Math.round(30 / (totalFacilities.tertiary + 1) + 10),
-    semiUrban: Math.round(45 / (totalFacilities.secondary + 1) + 20),
-    rural: Math.round(60 / (totalFacilities.primary + 1) + 30),
-    remote: Math.round(90 / (totalFacilitiesCount + 1) + 45)
-  };
-
-  return {
-    totalFacilities,
-    populationCoverage,
-    responseTime,
-    facilityDensity,
-    specialtyCoverage,
-    regionalAccessibility
-  };
+  } catch (error) {
+    console.error('Error calculating analytics:', error);
+    throw error;
+  }
 };
 
 export default {

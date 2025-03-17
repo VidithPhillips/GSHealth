@@ -1,177 +1,125 @@
-import { useState, useEffect } from 'react';
-import { 
-  Container, 
-  Typography, 
-  Paper, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
+import { useState, useEffect, useMemo } from 'react';
+import {
+  Box,
+  Typography,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
   TableRow,
   TablePagination,
   TextField,
-  InputAdornment,
-  CircularProgress,
-  Chip,
-  Button,
-  Box,
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Chip,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Tooltip,
+  InputAdornment,
+  Grid,
+  Card,
+  CardContent,
+  Divider
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import DirectionsIcon from '@mui/icons-material/Directions';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
-import FilterListIcon from '@mui/icons-material/FilterList';
+import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
+import AccessibleIcon from '@mui/icons-material/Accessible';
+import PhoneIcon from '@mui/icons-material/Phone';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import DirectionsIcon from '@mui/icons-material/Directions';
+import { fetchHealthcareFacilities } from '../services/facilities';
 
-// Sample data - this would be fetched from an API in a real application
-const SAMPLE_FACILITIES = [
-  {
-    id: 1,
-    name: "Indira Gandhi Medical College and Hospital",
-    type: "Tertiary",
-    address: "Ridge, Shimla, Himachal Pradesh 171001",
-    phone: "+91 177 280 4251",
-    specialties: ["Cardiology", "Neurology", "Orthopedics"],
-    lat: 31.1040,
-    lng: 77.1725
-  },
-  {
-    id: 2,
-    name: "Deen Dayal Upadhyay Hospital",
-    type: "Secondary",
-    address: "Sanjauli, Shimla, Himachal Pradesh 171006",
-    phone: "+91 177 280 5777",
-    specialties: ["General Medicine", "Pediatrics"],
-    lat: 31.1080,
-    lng: 77.1690
-  },
-  {
-    id: 3,
-    name: "Community Health Centre Dhalli",
-    type: "Primary",
-    address: "Dhalli, Shimla, Himachal Pradesh 171012",
-    phone: "+91 177 279 0025",
-    specialties: ["General Medicine", "Basic Emergency Care"],
-    lat: 31.1215,
-    lng: 77.1963
-  },
-  {
-    id: 4, 
-    name: "Primary Health Centre New Shimla",
-    type: "Primary",
-    address: "New Shimla, Himachal Pradesh 171009",
-    phone: "+91 177 279 2144",
-    specialties: ["General Medicine", "Maternal Care"],
-    lat: 31.0910,
-    lng: 77.1510
-  },
-  {
-    id: 5,
-    name: "Dr. Rajendra Prasad Government Medical College",
-    type: "Tertiary",
-    address: "Tanda, Kangra, Himachal Pradesh 176001",
-    phone: "+91 1892 267115",
-    specialties: ["Cardiology", "Neurology", "Oncology"],
-    lat: 32.0998,
-    lng: 76.2691
-  },
-  {
-    id: 6,
-    name: "Regional Hospital Kullu",
-    type: "Secondary",
-    address: "Dhalpur, Kullu, Himachal Pradesh 175101",
-    phone: "+91 1902 222361",
-    specialties: ["General Medicine", "Orthopedics", "Gynecology"],
-    lat: 31.9604, 
-    lng: 77.1088
-  },
-  {
-    id: 7,
-    name: "Civil Hospital Mandi",
-    type: "Secondary",
-    address: "Hospital Road, Mandi, Himachal Pradesh 175001",
-    phone: "+91 1905 223220",
-    specialties: ["General Medicine", "Surgery", "Pediatrics"],
-    lat: 31.7072,
-    lng: 76.9322
-  },
-  {
-    id: 8,
-    name: "ESIC Hospital Parwanoo",
-    type: "Secondary",
-    address: "Sector 4, Parwanoo, Himachal Pradesh 173220",
-    phone: "+91 1792 232041",
-    specialties: ["General Medicine", "Occupational Health"],
-    lat: 30.8370,
-    lng: 76.9613
-  },
-  {
-    id: 9,
-    name: "Primary Health Centre Dhanakar",
-    type: "Primary",
-    address: "Dhanakar, Solan, Himachal Pradesh 173212",
-    phone: "+91 1792 264783",
-    specialties: ["General Medicine", "Maternal Care"],
-    lat: 30.8960,
-    lng: 77.0967
-  },
-  {
-    id: 10,
-    name: "Civil Hospital Jwalamukhi",
-    type: "Primary",
-    address: "Jwalamukhi, Kangra, Himachal Pradesh 176031",
-    phone: "+91 1972 226022",
-    specialties: ["General Medicine"],
-    lat: 31.8768, 
-    lng: 76.3201
-  }
+// Major areas in Himachal Pradesh
+const AREAS = [
+  'All',
+  'Shimla',
+  'Dharamshala',
+  'Mandi',
+  'Solan',
+  'Kullu',
+  'Bilaspur',
+  'Other'
 ];
 
-// Chip colors by facility type
-const getChipColor = (type) => {
-  switch (type) {
-    case 'Primary':
-      return 'success';
-    case 'Secondary':
-      return 'primary';
-    case 'Tertiary':
-      return 'error';
-    default:
-      return 'default';
-  }
-};
+const FACILITY_TYPES = ['All', 'Primary', 'Secondary', 'Tertiary'];
 
-function Facilities({ selectedRegion }) {
+function Facilities() {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('All');
-  const [filterSpecialty, setFilterSpecialty] = useState('All');
+  const [selectedArea, setSelectedArea] = useState('All');
+  const [selectedType, setSelectedType] = useState('All');
 
-  // Simulate loading data from API
   useEffect(() => {
-    console.log(`Fetching facilities data for ${selectedRegion}...`);
-    
-    // Simulating an API call delay
-    setTimeout(() => {
-      setFacilities(SAMPLE_FACILITIES);
-      setLoading(false);
-    }, 1000);
-  }, [selectedRegion]);
+    const loadFacilities = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        console.log('Fetching healthcare facilities...');
+        const data = await fetchHealthcareFacilities();
+        console.log('Fetched facilities:', data);
+        setFacilities(data);
+      } catch (err) {
+        console.error('Error loading facilities:', err);
+        setError('Failed to load healthcare facilities. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Extract all unique specialties for filter dropdown
-  const allSpecialties = Array.from(
-    new Set(
-      facilities.flatMap(facility => facility.specialties)
-    )
-  ).sort();
+    loadFacilities();
+  }, []);
 
-  // Handle pagination
+  // Function to determine area based on facility coordinates
+  const determineArea = (facility) => {
+    const areaCoordinates = {
+      'Shimla': { lat: 31.1048, lng: 77.1734, radius: 20 },
+      'Dharamshala': { lat: 32.2190, lng: 76.3234, radius: 20 },
+      'Mandi': { lat: 31.7088, lng: 76.9320, radius: 20 },
+      'Solan': { lat: 30.9045, lng: 77.0967, radius: 20 },
+      'Kullu': { lat: 31.9579, lng: 77.1091, radius: 20 },
+      'Bilaspur': { lat: 31.3397, lng: 76.7567, radius: 20 }
+    };
+
+    for (const [area, coords] of Object.entries(areaCoordinates)) {
+      const distance = Math.sqrt(
+        Math.pow(facility.lat - coords.lat, 2) + 
+        Math.pow(facility.lng - coords.lng, 2)
+      );
+      if (distance <= coords.radius / 111) { // Convert radius from km to degrees
+        return area;
+      }
+    }
+    return 'Other';
+  };
+
+  // Filter and sort facilities
+  const filteredFacilities = useMemo(() => {
+    return facilities
+      .map(facility => ({
+        ...facility,
+        area: determineArea(facility)
+      }))
+      .filter(facility => {
+        const matchesSearch = facility.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          facility.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          facility.specialties.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesArea = selectedArea === 'All' || facility.area === selectedArea;
+        const matchesType = selectedType === 'All' || facility.type === selectedType;
+        return matchesSearch && matchesArea && matchesType;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [facilities, searchTerm, selectedArea, selectedType]);
+
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
   };
@@ -181,196 +129,186 @@ function Facilities({ selectedRegion }) {
     setPage(0);
   };
 
-  // Filter facilities based on search and filters
-  const filteredFacilities = facilities.filter(facility => {
-    // Search term filter (name, address, phone)
-    const matchesSearch = 
-      facility.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      facility.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      facility.phone.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Type filter
-    const matchesType = filterType === 'All' || facility.type === filterType;
-    
-    // Specialty filter
-    const matchesSpecialty = 
-      filterSpecialty === 'All' || 
-      facility.specialties.includes(filterSpecialty);
-    
-    return matchesSearch && matchesType && matchesSpecialty;
-  });
-
-  // Pagination calculation
-  const emptyRows = 
-    rowsPerPage - Math.min(rowsPerPage, filteredFacilities.length - page * rowsPerPage);
+  const getTypeColor = (type) => {
+    switch (type) {
+      case 'Primary': return '#4caf50';
+      case 'Secondary': return '#2196f3';
+      case 'Tertiary': return '#f44336';
+      default: return '#757575';
+    }
+  };
 
   if (loading) {
     return (
-      <Box className="loading-indicator">
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
         <CircularProgress />
       </Box>
     );
   }
 
-  return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography 
-        variant="h4" 
-        component="h1" 
-        gutterBottom 
-        sx={{ display: 'flex', alignItems: 'center' }}
-      >
-        <LocalHospitalIcon sx={{ mr: 1, color: 'primary.main' }} />
-        Healthcare Facilities in {selectedRegion}
-      </Typography>
-      
-      <Paper sx={{ mb: 3, p: 2 }}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: 'flex-start' }}>
-          {/* Search bar */}
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Search facilities..."
-            size="small"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
-          
-          {/* Filters */}
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <FilterListIcon sx={{ mr: 1, color: 'text.secondary' }} />
-              <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
-                Filters:
-              </Typography>
-            </Box>
-            
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel id="facility-type-filter-label">Type</InputLabel>
-              <Select
-                labelId="facility-type-filter-label"
-                id="facility-type-filter"
-                value={filterType}
-                label="Type"
-                onChange={(e) => setFilterType(e.target.value)}
-              >
-                <MenuItem value="All">All Types</MenuItem>
-                <MenuItem value="Primary">Primary</MenuItem>
-                <MenuItem value="Secondary">Secondary</MenuItem>
-                <MenuItem value="Tertiary">Tertiary</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel id="specialty-filter-label">Specialty</InputLabel>
-              <Select
-                labelId="specialty-filter-label"
-                id="specialty-filter"
-                value={filterSpecialty}
-                label="Specialty"
-                onChange={(e) => setFilterSpecialty(e.target.value)}
-              >
-                <MenuItem value="All">All Specialties</MenuItem>
-                {allSpecialties.map(specialty => (
-                  <MenuItem key={specialty} value={specialty}>
-                    {specialty}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
-      </Paper>
-      
-      <Paper elevation={2}>
-        <TableContainer>
-          <Table aria-label="healthcare facilities table">
-            <TableHead>
-              <TableRow sx={{ backgroundColor: 'primary.light' }}>
-                <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Facility Name</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Type</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Address</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Phone</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Specialties</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: 'white' }} align="center">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredFacilities
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((facility) => (
-                  <TableRow key={facility.id} hover>
-                    <TableCell component="th" scope="row">
-                      {facility.name}
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={facility.type} 
-                        size="small" 
-                        color={getChipColor(facility.type)} 
-                      />
-                    </TableCell>
-                    <TableCell>{facility.address}</TableCell>
-                    <TableCell>{facility.phone}</TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {facility.specialties.map(specialty => (
-                          <Chip 
-                            key={specialty} 
-                            label={specialty} 
-                            size="small" 
-                            variant="outlined" 
-                            sx={{ fontSize: '0.75rem' }}
-                          />
-                        ))}
-                      </Box>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Button
-                        variant="contained"
-                        size="small"
-                        startIcon={<DirectionsIcon />}
-                        onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${facility.lat},${facility.lng}`)}
-                      >
-                        Directions
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              
-              {emptyRows > 0 && (
-                <TableRow style={{ height: 53 * emptyRows }}>
-                  <TableCell colSpan={6} />
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        
-        <TablePagination
-          rowsPerPageOptions={[5, 10, 25]}
-          component="div"
-          count={filteredFacilities.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      </Paper>
-      
-      <Box sx={{ mt: 2, textAlign: 'right' }}>
-        <Typography variant="body2" color="text.secondary">
-          {filteredFacilities.length} facilities found in {selectedRegion}
-        </Typography>
+  if (error) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">{error}</Alert>
       </Box>
-    </Container>
+    );
+  }
+
+  if (!facilities.length) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="info">No healthcare facilities found in the selected region.</Alert>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+        <LocalHospitalIcon sx={{ mr: 1 }} />
+        Healthcare Facilities
+      </Typography>
+
+      <Alert severity="info" sx={{ mb: 3 }}>
+        Showing {filteredFacilities.length} healthcare facilities in Himachal Pradesh.
+        Data sourced from OpenStreetMap, last updated: {new Date().toLocaleString()}
+      </Alert>
+
+      {/* Filters */}
+      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        <TextField
+          label="Search"
+          variant="outlined"
+          size="small"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          sx={{ minWidth: 200 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Area</InputLabel>
+          <Select
+            value={selectedArea}
+            label="Area"
+            onChange={(e) => setSelectedArea(e.target.value)}
+          >
+            {AREAS.map(area => (
+              <MenuItem key={area} value={area}>{area}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Facility Type</InputLabel>
+          <Select
+            value={selectedType}
+            label="Facility Type"
+            onChange={(e) => setSelectedType(e.target.value)}
+          >
+            {FACILITY_TYPES.map(type => (
+              <MenuItem key={type} value={type}>{type}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
+
+      {/* Table */}
+      <TableContainer component={Paper} elevation={2}>
+        <Table sx={{ minWidth: 650 }} size="medium">
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>Area</TableCell>
+              <TableCell>Address</TableCell>
+              <TableCell>Contact</TableCell>
+              <TableCell>Specialties</TableCell>
+              <TableCell align="center">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredFacilities
+              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+              .map((facility) => (
+                <TableRow key={facility.id}>
+                  <TableCell component="th" scope="row">
+                    <Typography variant="body2" fontWeight="medium">
+                      {facility.name}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={facility.type}
+                      size="small"
+                      color={
+                        facility.type === 'Tertiary' ? 'error' :
+                        facility.type === 'Secondary' ? 'primary' :
+                        'success'
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>{facility.area}</TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <LocationOnIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
+                      <Typography variant="body2">{facility.address || 'N/A'}</Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    {facility.phone && facility.phone !== 'N/A' ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <PhoneIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
+                        <Typography variant="body2">{facility.phone}</Typography>
+                      </Box>
+                    ) : (
+                      'N/A'
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                      {facility.specialties.map((specialty, index) => (
+                        <Chip
+                          key={index}
+                          label={specialty}
+                          size="small"
+                          sx={{ backgroundColor: '#f5f5f5' }}
+                        />
+                      ))}
+                    </Box>
+                  </TableCell>
+                  <TableCell align="center">
+                    <Tooltip title="Get Directions">
+                      <IconButton
+                        size="small"
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${facility.lat},${facility.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <DirectionsIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <TablePagination
+        rowsPerPageOptions={[10, 25, 50]}
+        component="div"
+        count={filteredFacilities.length}
+        rowsPerPage={rowsPerPage}
+        page={page}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+      />
+    </Box>
   );
 }
 
